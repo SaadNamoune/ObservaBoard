@@ -1,0 +1,206 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Any modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
+ * Licensed to Elasticsearch B.V. under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch B.V. licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import {
+  buildInlineScriptForPhraseFilter,
+  buildPhraseFilter,
+  getPhraseFilterField,
+  isScriptedPhraseFilter,
+} from './phrase_filter';
+import { fields, getField } from '../../index_patterns/mocks';
+import { IIndexPattern } from '../../index_patterns';
+
+describe('Phrase filter builder', () => {
+  let indexPattern: IIndexPattern;
+
+  beforeEach(() => {
+    indexPattern = {
+      id: 'id',
+    } as IIndexPattern;
+  });
+
+  it('should be a function', () => {
+    expect(typeof buildPhraseFilter).toBe('function');
+  });
+
+  it('should return a match query filter when passed a standard field', () => {
+    const field = getField('bytes');
+
+    expect(buildPhraseFilter(field, 5, indexPattern)).toEqual({
+      meta: {
+        index: 'id',
+      },
+      query: {
+        match_phrase: {
+          bytes: 5,
+        },
+      },
+    });
+  });
+
+  it('should return a script filter when passed a scripted field', () => {
+    const field = getField('script number');
+
+    expect(buildPhraseFilter(field, 5, indexPattern)).toEqual({
+      meta: {
+        index: 'id',
+        field: 'script number',
+      },
+      script: {
+        script: {
+          lang: 'expression',
+          params: {
+            value: 5,
+          },
+          source: '(1234) == value',
+        },
+      },
+    });
+  });
+});
+
+describe('buildInlineScriptForPhraseFilter', () => {
+  it('should wrap painless scripts in a lambda', () => {
+    const field = {
+      lang: 'painless',
+      script: 'return foo;',
+    };
+
+    const expected =
+      `boolean compare(Supplier s, def v) {return s.get() == v;}` +
+      `compare(() -> { return foo; }, params.value);`;
+
+    expect(buildInlineScriptForPhraseFilter(field)).toBe(expected);
+  });
+
+  it('should create a simple comparison for other langs', () => {
+    const field = {
+      lang: 'expression',
+      script: 'doc[bytes].value',
+    };
+
+    const expected = `(doc[bytes].value) == value`;
+
+    expect(buildInlineScriptForPhraseFilter(field)).toBe(expected);
+  });
+});
+
+describe('getPhraseFilterField', function () {
+  const indexPattern: IIndexPattern = ({
+    fields,
+  } as unknown) as IIndexPattern;
+
+  it('should return the name of the field a phrase query is targeting', () => {
+    const field = indexPattern.fields.find((patternField) => patternField.name === 'extension');
+    const filter = buildPhraseFilter(field!, 'jpg', indexPattern);
+    const result = getPhraseFilterField(filter);
+    expect(result).toBe('extension');
+  });
+});
+
+describe('isScriptedPhraseFilter', () => {
+  it('should return true for a scripted phrase filter with value 0', () => {
+    const filter = {
+      meta: { field: 'script number' },
+      script: {
+        script: {
+          lang: 'painless',
+          params: { value: 0 },
+          source: 'boolean compare(Supplier s, def v) {return s.get() == v;}',
+        },
+      },
+    };
+    expect(isScriptedPhraseFilter(filter)).toBe(true);
+  });
+
+  it('should return true for a scripted phrase filter with value false', () => {
+    const filter = {
+      meta: { field: 'script boolean' },
+      script: {
+        script: {
+          lang: 'painless',
+          params: { value: false },
+          source: 'boolean compare(Supplier s, def v) {return s.get() == v;}',
+        },
+      },
+    };
+    expect(isScriptedPhraseFilter(filter)).toBe(true);
+  });
+
+  it('should return true for a scripted phrase filter with empty string value', () => {
+    const filter = {
+      meta: { field: 'script string' },
+      script: {
+        script: {
+          lang: 'painless',
+          params: { value: '' },
+          source: 'boolean compare(Supplier s, def v) {return s.get() == v;}',
+        },
+      },
+    };
+    expect(isScriptedPhraseFilter(filter)).toBe(true);
+  });
+
+  it('should return true for a scripted phrase filter with a truthy value', () => {
+    const filter = {
+      meta: { field: 'script number' },
+      script: {
+        script: {
+          lang: 'expression',
+          params: { value: 5 },
+          source: '(1234) == value',
+        },
+      },
+    };
+    expect(isScriptedPhraseFilter(filter)).toBe(true);
+  });
+
+  it('should return false for a filter without script params value', () => {
+    const filter = {
+      meta: { index: 'logstash-*' },
+      query: { match_phrase: { extension: 'jpg' } },
+    };
+    expect(isScriptedPhraseFilter(filter)).toBe(false);
+  });
+
+  it('should return false for a filter with null script params value', () => {
+    const filter = {
+      meta: { field: 'script number' },
+      script: {
+        script: {
+          lang: 'painless',
+          params: { value: null },
+          source: 'boolean compare(Supplier s, def v) {return s.get() == v;}',
+        },
+      },
+    };
+    expect(isScriptedPhraseFilter(filter)).toBe(false);
+  });
+});
