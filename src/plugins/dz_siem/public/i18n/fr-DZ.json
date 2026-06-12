@@ -1,0 +1,18 @@
+{
+  "dz_siem.dashboard.title": "Tableau de bord SIEM Algérien",
+  "dz_siem.dashboard.security_events": "Événements de sécurité",
+  "dz_siem.dashboard.critical_alerts": "Alertes critiques",
+  "dz_siem.dashboard.compliance_score": "Score de conformité ANSSI-DZ",
+  "dz_siem.dashboard.monitored_hosts": "Hôtes surveillés",
+  "dz_siem.threat_intel.title": "Renseignement sur les menaces algériennes",
+  "dz_siem.threat_intel.cert_dz": "CERT-DZ",
+  "dz_siem.threat_intel.anssi_dz": "ANSSI-DZ",
+  "dz_siem.compliance.law_18_07": "Loi 18-07 relative à la protection des données personnelles",
+  "dz_siem.compliance.crssi": "Comité de la Réglementation de la Sécurité des Systèmes d'Information",
+  "dz_siem.alerts.severity.critical": "Critique",
+  "dz_siem.alerts.severity.high": "Élevé",
+  "dz_siem.alerts.severity.medium": "Moyen",
+  "dz_siem.alerts.severity.low": "Faible",
+  "dz_siem.log_search.placeholder": "Rechercher dans les journaux...",
+  "dz_siem.log_search.semantic_hint": "Recherche sémantique propulsée par VectorLog-Engine"
+}

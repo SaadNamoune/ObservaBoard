@@ -1,0 +1,18 @@
+{
+  "dz_siem.dashboard.title": "لوحة تحكم SIEM الجزائرية",
+  "dz_siem.dashboard.security_events": "الأحداث الأمنية",
+  "dz_siem.dashboard.critical_alerts": "التنبيهات الحرجة",
+  "dz_siem.dashboard.compliance_score": "نقاط الامتثال ANSSI-DZ",
+  "dz_siem.dashboard.monitored_hosts": "المضيفون المراقبون",
+  "dz_siem.threat_intel.title": "معلومات التهديد الجزائرية",
+  "dz_siem.threat_intel.cert_dz": "CERT-DZ",
+  "dz_siem.threat_intel.anssi_dz": "ANSSI-DZ",
+  "dz_siem.compliance.law_18_07": "قانون 18-07 لحماية البيانات الشخصية",
+  "dz_siem.compliance.crssi": "لجنة الأمن الإلكتروني",
+  "dz_siem.alerts.severity.critical": "حرج",
+  "dz_siem.alerts.severity.high": "عالٍ",
+  "dz_siem.alerts.severity.medium": "متوسط",
+  "dz_siem.alerts.severity.low": "منخفض",
+  "dz_siem.log_search.placeholder": "ابحث في السجلات...",
+  "dz_siem.log_search.semantic_hint": "البحث الدلالي مدعوم بـ VectorLog-Engine"
+}
