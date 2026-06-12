@@ -1,0 +1,10 @@
+{
+  "id": "dz_siem",
+  "version": "0.1.0",
+  "opensearchDashboardsVersion": "kibana",
+  "server": true,
+  "ui": true,
+  "requiredPlugins": ["opensearch_dashboards_react", "data", "navigation", "savedObjects"],
+  "optionalPlugins": ["alerting"],
+  "description": "DZ SIEM Plugin — ANSSI-DZ compliance dashboards and CERT-DZ threat intel for Algerian enterprises"
+}
