@@ -1,0 +1,100 @@
+name: ObservaBoard CI
+
+on:
+  push:
+    branches: [main, develop, 'feat/**', 'fix/**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-typecheck:
+    name: Lint + TypeScript
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'yarn'
+      - run: yarn install --frozen-lockfile
+      - run: yarn lint
+      - run: yarn typecheck
+
+  unit-tests:
+    name: Unit Tests (DZ SIEM plugins)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'yarn'
+      - run: yarn install --frozen-lockfile
+      - name: Run Jest unit tests for dz_siem plugin
+        run: yarn test:jest src/plugins/dz_siem --coverage --coverageReporters=lcov
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/lcov.info
+
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan for leaked credentials
+        run: |
+          echo "Scanning for OpenAI keys (sk-)..."
+          if git log --all -p | grep -qE 'sk-[A-Za-z0-9]{32,}'; then
+            echo "ERROR: OpenAI API key detected in git history"
+            exit 1
+          fi
+          echo "Scanning for AWS keys (AKIA)..."
+          if git log --all -p | grep -qE 'AKIA[A-Z0-9]{16}'; then
+            echo "ERROR: AWS Access Key detected"
+            exit 1
+          fi
+          echo "Scanning for GitHub tokens (ghp_)..."
+          if git log --all -p | grep -qE 'ghp_[A-Za-z0-9]{36}'; then
+            echo "ERROR: GitHub PAT detected"
+            exit 1
+          fi
+          echo "Secret scan passed."
+
+  dz-siem-integration:
+    name: DZ SIEM Integration Tests
+    runs-on: ubuntu-22.04
+    services:
+      opensearch:
+        image: opensearchproject/opensearch:2.13.0
+        env:
+          discovery.type: single-node
+          DISABLE_SECURITY_PLUGIN: 'true'
+        ports:
+          - 9200:9200
+        options: >-
+          --health-cmd "curl -sf http://localhost:9200/_cluster/health"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'yarn'
+      - run: yarn install --frozen-lockfile
+      - name: Wait for OpenSearch
+        run: |
+          until curl -sf http://localhost:9200/_cluster/health; do sleep 2; done
+      - name: Seed DZ SIEM test indices
+        run: |
+          curl -X PUT "http://localhost:9200/security-alerts-test" -H 'Content-Type: application/json' -d '{
+            "mappings": {"properties": {"severity": {"type": "keyword"}, "timestamp": {"type": "date"}, "message": {"type": "text"}}}
+          }'
+      - name: Run integration tests
+        run: yarn test:jest_integration src/plugins/dz_siem --testPathPattern=integration
+        env:
+          OPENSEARCH_URL: http://localhost:9200
