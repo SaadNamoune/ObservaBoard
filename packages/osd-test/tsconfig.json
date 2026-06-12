@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "bundler",
+    "rootDir": ".",
+    "tsBuildInfoFile": "../../build/tsbuildinfo/packages/osd-test"
+  },
+  "include": [
+    "types/**/*",
+    "src/**/*",
+    "index.d.ts"
+  ]
+}
