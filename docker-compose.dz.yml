@@ -1,0 +1,116 @@
+version: '3.8'
+
+# ObservaBoard DZ — local development stack
+# Spins up: OpenSearch 2.13, OpenSearch Dashboards (ObservaBoard), VectorLog-Engine
+#
+# Usage:
+#   docker compose -f docker-compose.dz.yml up -d
+#   Open http://localhost:5601 (admin/admin)
+
+services:
+  opensearch:
+    image: opensearchproject/opensearch:2.13.0
+    container_name: observaboard-opensearch
+    environment:
+      - cluster.name=observaboard-dz
+      - node.name=os-node-1
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
+      - DISABLE_SECURITY_PLUGIN=true
+      - plugins.ml_commons.allow_registering_model_via_url=true
+      - plugins.ml_commons.native_memory_threshold=95
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    ports:
+      - '9200:9200'
+      - '9600:9600'
+    healthcheck:
+      test: ['CMD', 'curl', '-sf', 'http://localhost:9200/_cluster/health']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  observaboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: observaboard-osd
+    environment:
+      - OPENSEARCH_HOSTS=http://opensearch:9200
+      - SERVER_NAME=observaboard.engisoft.dz
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+      - OSD_HOME=/usr/share/opensearch-dashboards
+    ports:
+      - '5601:5601'
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    volumes:
+      - ./config/opensearch_dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml:ro
+
+  vectorlog-engine:
+    image: python:3.11-slim
+    container_name: vectorlog-engine
+    working_dir: /app
+    command: >
+      bash -c "pip install sentence-transformers opensearch-py fastapi uvicorn &&
+               uvicorn vectorlog.api:app --host 0.0.0.0 --port 8080"
+    environment:
+      - OPENSEARCH_URL=http://opensearch:9200
+      - EMBEDDING_MODEL=all-MiniLM-L6-v2
+      - INDEX_NAME=vectorlog-logs-dz
+      - HNSW_M=16
+      - HNSW_EF_CONSTRUCTION=128
+    ports:
+      - '8080:8080'
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
+  opensearch-init:
+    image: curlimages/curl:latest
+    container_name: os-init
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    entrypoint: >
+      sh -c '
+        echo "Creating security-alerts-* index template...";
+        curl -sf -X PUT "http://opensearch:9200/_index_template/security-alerts" -H "Content-Type: application/json" -d "{
+          \"index_patterns\": [\"security-alerts-*\"],
+          \"template\": {
+            \"mappings\": {
+              \"properties\": {
+                \"severity\": {\"type\": \"keyword\"},
+                \"source_ip\": {\"type\": \"ip\"},
+                \"destination_ip\": {\"type\": \"ip\"},
+                \"message\": {\"type\": \"text\"},
+                \"rule_id\": {\"type\": \"keyword\"},
+                \"@timestamp\": {\"type\": \"date\"}
+              }
+            }
+          }
+        }";
+        echo "Creating dz-compliance index...";
+        curl -sf -X PUT "http://opensearch:9200/dz-compliance-2024" -H "Content-Type: application/json" -d "{
+          \"mappings\": {
+            \"properties\": {
+              \"regulation\": {\"type\": \"keyword\"},
+              \"article\": {\"type\": \"keyword\"},
+              \"status\": {\"type\": \"keyword\"},
+              \"compliance_score\": {\"type\": \"float\"}
+            }
+          }
+        }";
+        echo "Index initialization complete."
+      '
+    restart: on-failure
+
+volumes:
+  opensearch-data:
+    driver: local
